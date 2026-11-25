@@ -1,0 +1,51 @@
+name: Parse Check
+
+# The full app build needs Xcode 26 + 30-60 min of native dependency builds
+# (iSH kernel, FFmpeg, rclone) before xcodebuild can even resolve the project.
+# This job is the cheap half: it catches syntax errors in the changed sources
+# and validates the hand-edited project file, both of which fail fast.
+on:
+  push:
+    paths:
+      - 'src/ios/**'
+      - 'src/ios/Minis.xcodeproj/project.pbxproj'
+      - '.github/workflows/parse-check.yml'
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  parse:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show toolchain
+        run: |
+          sw_vers
+          xcodebuild -version || true
+          swift --version || true
+
+      - name: Lint the project file
+        run: plutil -lint src/ios/Minis.xcodeproj/project.pbxproj
+
+      - name: Parse check (stdlib only, no module resolution)
+        run: |
+          set -o pipefail
+          files="
+            src/ios/Agent/Session/PluginStore.swift
+            src/ios/Views/Settings/PluginsSettingsView.swift
+            src/ios/Views/Settings/SettingsSheet.swift
+            src/ios/Agent/Chat/AIChatViewModel+AgentLoop.swift
+          "
+          fail=0
+          for f in $files; do
+            echo "::group::$f"
+            if xcrun swiftc -parse "$f" 2>&1; then
+              echo "OK"
+            else
+              echo "::error file=$f::parse failed"
+              fail=1
+            fi
+            echo "::endgroup::"
+          done
+          exit $fail
