@@ -25,8 +25,8 @@ jobs:
         run: swiftc --version
 
       - name: Parse check
+        shell: bash
         run: |
-          set -o pipefail
           files="
             src/ios/Agent/Session/PluginStore.swift
             src/ios/Views/Settings/PluginsSettingsView.swift
