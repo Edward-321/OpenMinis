@@ -241,6 +241,14 @@ extension AIChatViewModel {
             userSystemPrompt += "\n\n" + mcpFragment
         }
 
+        // [T-plugin-prompts] Prompt plugins (DSH-style): user-installed prompt
+        // modules, appended after skill/MCP metadata so a plugin can steer
+        // output format and behavior. Read on every request — an edit to a
+        // module applies from the next turn without a restart.
+        if let pluginFragment = PluginStore.shared.promptFragment() {
+            userSystemPrompt += "\n\n" + pluginFragment
+        }
+
         // [T-memory-toggle-gates-injection-and-tools-ios] Memory injection
         // (GLOBAL.md + recent daily logs) is gated by the per-session
         // memoryEnabled toggle. SOUL.md (identity / persona) is rendered
@@ -1086,6 +1094,12 @@ extension AIChatViewModel {
                 if let sid = helperConfig?.parentSessionId ?? sessionId,
                    let mcpFragment = MCPStore.shared.systemPromptSnippet(for: sid) {
                     userSystemPrompt += "\n\n" + mcpFragment
+                }
+                // [T-plugin-prompts] Same plugin injection as the setup path, so a
+                // fallback to another provider mid-run does not drop the
+                // user's enabled prompt plugins.
+                if let pluginFragment = PluginStore.shared.promptFragment() {
+                    userSystemPrompt += "\n\n" + pluginFragment
                 }
                 // [T-memory-toggle-gates-injection-and-tools-ios] Mirror
                 // the gate from the first injection site — fallback to a

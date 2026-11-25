@@ -19,6 +19,7 @@ private enum SettingsDestination: Hashable {
     case modelGroupDetail(groupId: String)
     case usage
     case skills
+    case plugins
     // [T-ios-assistant-header-open-soul]
     case soul
     // [T-tools-master-switch]
@@ -141,6 +142,22 @@ struct SettingsSheet: View {
                                 .foregroundStyle(.white)
                                 .frame(width: 21, height: 21)
                                 .background(.blue, in: Circle())
+                        }
+                    }
+                    // A plugin packages skills and MCP servers, so it sits
+                    // between the two surfaces it composes rather than in a
+                    // section of its own.
+                    NavigationLink {
+                        PluginsSettingsView()
+                    } label: {
+                        Label {
+                            Text("Plugins")
+                        } icon: {
+                            Image(systemName: "puzzlepiece.fill")
+                                .font(.system(size: 9))
+                                .foregroundStyle(.white)
+                                .frame(width: 21, height: 21)
+                                .background(.mint, in: Circle())
                         }
                     }
                     NavigationLink {
@@ -398,6 +415,8 @@ struct SettingsSheet: View {
                     UsageStatsView()
                 case .skills:
                     SkillsManagementView()
+                case .plugins:
+                    PluginsSettingsView()
                 case .soul:
                     SoulSettingsView()
                 case .tools:
