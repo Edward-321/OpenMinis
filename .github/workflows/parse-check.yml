@@ -1,34 +1,30 @@
 name: Parse Check
 
 # The full app build needs Xcode 26 + 30-60 min of native dependency builds
-# (iSH kernel, FFmpeg, rclone) before xcodebuild can even resolve the project.
-# This job is the cheap half: it catches syntax errors in the changed sources
-# and validates the hand-edited project file, both of which fail fast.
+# (iSH kernel, FFmpeg, rclone) before xcodebuild can resolve the project, and
+# macOS runners queue for a long time. This job is the cheap half and runs on
+# Linux: `swiftc -parse` is a pure syntax pass, no SDK or module resolution, so
+# it catches unbalanced braces, bad string literals and malformed signatures in
+# seconds. It cannot catch type errors — the xcodebuild job is what does that.
 on:
   push:
     paths:
       - 'src/ios/**'
-      - 'src/ios/Minis.xcodeproj/project.pbxproj'
       - '.github/workflows/parse-check.yml'
   pull_request:
   workflow_dispatch:
 
 jobs:
   parse:
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
+    container: swift:6.0
     steps:
       - uses: actions/checkout@v4
 
-      - name: Show toolchain
-        run: |
-          sw_vers
-          xcodebuild -version || true
-          swift --version || true
+      - name: Toolchain
+        run: swiftc --version
 
-      - name: Lint the project file
-        run: plutil -lint src/ios/Minis.xcodeproj/project.pbxproj
-
-      - name: Parse check (stdlib only, no module resolution)
+      - name: Parse check
         run: |
           set -o pipefail
           files="
@@ -40,7 +36,7 @@ jobs:
           fail=0
           for f in $files; do
             echo "::group::$f"
-            if xcrun swiftc -parse "$f" 2>&1; then
+            if swiftc -parse "$f" 2>&1; then
               echo "OK"
             else
               echo "::error file=$f::parse failed"
@@ -49,3 +45,29 @@ jobs:
             echo "::endgroup::"
           done
           exit $fail
+
+      - name: Project file sanity
+        run: python3 .github/scripts/check_pbxproj.py
+
+  # Type-checking and linking need a real Xcode and the prebuilt native deps,
+  # so this job is manual: it is opt-in via workflow_dispatch, not on every
+  # push. See BUILDING.md for the dependency steps it assumes are cached.
+  xcodebuild:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Toolchain
+        run: xcodebuild -version
+      - name: Build (expect link failure without deps; Swift errors surface first)
+        run: |
+          xcodebuild -project src/ios/Minis.xcodeproj -scheme Minis \
+            -configuration Debug -destination 'generic/platform=iOS' \
+            -derivedDataPath build CODE_SIGNING_ALLOWED=NO build 2>&1 \
+            | tee build.log | grep -E "error:|warning: .*Plugin" || true
+          if grep -q "error:" build.log; then
+            echo "::error::compile errors present"
+            exit 1
+          fi
