@@ -47,7 +47,14 @@ jobs:
           exit $fail
 
       - name: Project file sanity
-        run: python3 .github/scripts/check_pbxproj.py
+        shell: bash
+        run: |
+          # The swift image has no python3; the check needs only the stdlib,
+          # so installing it beats porting the script to awk.
+          if ! command -v python3 >/dev/null; then
+            apt-get update -qq && apt-get install -y -qq python3 >/dev/null
+          fi
+          python3 .github/scripts/check_pbxproj.py
 
   # Type-checking and linking need a real Xcode and the prebuilt native deps,
   # so this job is manual: it is opt-in via workflow_dispatch, not on every
